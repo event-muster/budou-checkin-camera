@@ -384,104 +384,183 @@
 
   function sendToGAS(qrData) {
 
-    const url =
-      GAS_URL +
-      "?code=" +
-      encodeURIComponent(qrData);
+  const callbackName =
+    "checkInCallback_" +
+    Date.now();
 
 
-    /*
-     * 非表示iframeを使ってGASへ送信。
-     * このページ自体は移動しません。
-     */
-
-    const iframe =
-      document.createElement("iframe");
-
-    iframe.style.display =
-      "none";
-
-    iframe.src = url;
-
-    document.body.appendChild(iframe);
+  const script =
+    document.createElement("script");
 
 
-    /*
-     * GAS側の処理時間を考慮して
-     * 少し待ちます。
-     */
+  /*
+   * GASから返ってきた結果を
+   * この関数で受け取ります。
+   */
+  window[callbackName] =
+    function(result) {
 
-    setTimeout(
-      function() {
-
-        /*
-         * iframeを削除
-         */
-        if (
-          iframe.parentNode
-        ) {
-
-          iframe.parentNode.removeChild(
-            iframe
-          );
-
-        }
+      /*
+       * scriptを削除
+       */
+      if (script.parentNode) {
+        script.parentNode.removeChild(script);
+      }
 
 
-        /*
-         * 受付完了表示
-         */
+      /*
+       * callbackも削除
+       */
+      try {
+        delete window[callbackName];
+      } catch (e) {
+        window[callbackName] = undefined;
+      }
+
+
+      /*
+       * 受付結果を表示
+       */
+      if (result.alreadyCheckedIn) {
+
+        message.className =
+          "warning";
+
+        message.innerHTML =
+          "【既に受付済み】<br><br>" +
+          escapeHtml(
+            result.details
+              ? result.details.name
+              : "お客様"
+          ) +
+          " 様は、すでに受付済みです。<br><br>" +
+          "次のQRコードを読み取ってください。";
+
+
+      } else if (result.success) {
+
         message.className =
           "success";
 
         message.innerHTML =
           "【受付完了】<br><br>" +
+          escapeHtml(
+            result.details
+              ? result.details.name
+              : "お客様"
+          ) +
+          " 様<br><br>" +
           "受付番号：" +
           escapeHtml(qrData) +
           "<br><br>" +
           "次のQRコードを読み取ってください。";
 
 
-        /*
-         * ★重要
-         *
-         * カメラは停止しません。
-         *
-         * 少し待ってから
-         * 次のQR読み取りを再開します。
-         */
+      } else {
 
-        setTimeout(
-  function() {
+        message.className =
+          "error";
 
-    processing = false;
-
-    message.className = "";
-
-    message.textContent =
-      "次のQRコードを読み取ってください。";
-
-    // QR読み取りを再開
-    scanning = true;
-
-    // 少し間隔を空けてスキャンループを再開
-    setTimeout(
-      function() {
-        requestAnimationFrame(scanQR);
-      },
-      300
-    );
-
-  },
-  1000
-);
+        message.innerHTML =
+          escapeHtml(
+            result.message ||
+            "該当する参加者が見つかりません。"
+          ) +
+          "<br><br>" +
+          "次のQRコードを読み取ってください。";
+      }
 
 
-      },
-      2500
-    );
+      /*
+       * 次のQR読み取りを再開
+       */
+      setTimeout(
+        function() {
 
-  }
+          processing = false;
+          scanning = true;
+
+          message.className = "";
+
+          message.textContent =
+            "次のQRコードを読み取ってください。";
+
+          requestAnimationFrame(
+            scanQR
+          );
+
+        },
+        1000
+      );
+
+    };
+
+
+  /*
+   * エラー時
+   */
+  window[callbackName + "_error"] =
+    function() {
+
+      if (script.parentNode) {
+        script.parentNode.removeChild(script);
+      }
+
+      delete window[callbackName];
+
+      message.className =
+        "error";
+
+      message.textContent =
+        "受付処理でエラーが発生しました。";
+
+      processing = false;
+      scanning = true;
+
+      requestAnimationFrame(
+        scanQR
+      );
+    };
+
+
+  /*
+   * GAS URL
+   */
+  const url =
+    GAS_URL +
+    "?code=" +
+    encodeURIComponent(qrData) +
+    "&callback=" +
+    encodeURIComponent(callbackName);
+
+
+  /*
+   * JSONPとしてGASを呼び出す
+   */
+  script.src = url;
+
+
+  /*
+   * 読み込みエラー
+   */
+  script.onerror =
+    window[callbackName + "_error"];
+
+
+  document.body.appendChild(script);
+
+
+  /*
+   * 処理中表示
+   */
+  message.className =
+    "loading";
+
+  message.textContent =
+    "受付処理中です…";
+
+}
+
 
 
   // =========================
