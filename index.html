@@ -255,10 +255,14 @@
 
         // カメラを停止
         if (stream) {
-          stream
-            .getTracks()
-            .forEach(track => track.stop());
-        }
+  stream.getTracks().forEach(track => {
+    track.stop();
+  });
+
+  video.srcObject = null;
+  stream = null;
+}
+
 
         /*
          * QRの整理番号をGASへ送る
