@@ -2,6 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
+
   <meta
     name="viewport"
     content="width=device-width, initial-scale=1, viewport-fit=cover"
@@ -49,8 +50,7 @@
       display: none;
     }
 
-    #startButton,
-    #nextButton {
+    #startButton {
       width: 100%;
       max-width: 400px;
       margin: 15px auto;
@@ -61,11 +61,6 @@
       color: white;
       font-size: 1.1rem;
       font-weight: bold;
-    }
-
-    #nextButton {
-      display: none;
-      background: #137333;
     }
 
     #message {
@@ -87,9 +82,39 @@
       color: #137333;
     }
 
+    .warning {
+      background: #fef7e0 !important;
+      color: #b06000;
+    }
+
     .loading {
       background: #e8eaed !important;
       color: #3c4043;
+    }
+
+    .detail-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 15px;
+      background: white;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .detail-table th,
+    .detail-table td {
+      padding: 9px;
+      border-bottom: 1px solid #eee;
+    }
+
+    .detail-table th {
+      text-align: left;
+      background: #f5f5f5;
+    }
+
+    .detail-table td {
+      text-align: right;
+      font-weight: bold;
     }
   </style>
 </head>
@@ -113,10 +138,6 @@
   カメラを起動
 </button>
 
-<button id="nextButton">
-  次のQRコードを読み取る
-</button>
-
 <div id="message">
   「カメラを起動」を押してください。
 </div>
@@ -124,9 +145,9 @@
 
 <script>
 
-  // ★★★★★
-  // 現在使用しているGASウェブアプリURL
-  const GAS_URL = "https://script.google.com/macros/s/AKfycbzlDkxlIY5ljVz5p7Eiepf2_vwtHfidsY7av41cGw0GI4YqKiT6o1bn9lUarZ8y05Gj/exec";
+  // GASウェブアプリURL
+  const GAS_URL =
+    "https://script.google.com/macros/s/AKfycbzlDkxlIY5ljVz5p7Eiepf2_vwtHfidsY7av41cGw0GI4YqKiT6o1bn9lUarZ8y05Gj/exec";
 
 
   const video =
@@ -143,21 +164,20 @@
   const startButton =
     document.getElementById("startButton");
 
-  const nextButton =
-    document.getElementById("nextButton");
-
   const message =
     document.getElementById("message");
 
 
   let stream = null;
+
   let scanning = false;
+
   let processing = false;
 
 
-  // -------------------------
+  // =========================
   // カメラ起動
-  // -------------------------
+  // =========================
 
   startButton.addEventListener(
     "click",
@@ -165,63 +185,37 @@
   );
 
 
-  nextButton.addEventListener(
-    "click",
-    function() {
-
-      nextButton.style.display = "none";
-
-      message.className = "loading";
-      message.textContent =
-        "カメラを準備しています…";
-
-      /*
-       * Safariではカメラ停止直後に
-       * 再取得すると失敗することがあるため、
-       * 少し待ってから起動します。
-       */
-      setTimeout(function() {
-        startCamera();
-      }, 800);
-
-    }
-  );
-
-
   async function startCamera() {
 
     try {
 
-      scanning = false;
-      processing = false;
-
       message.className = "loading";
+
       message.textContent =
         "カメラを起動しています…";
 
 
-      // 古いカメラを完全に停止
+      // すでにカメラが動いている場合は何もしない
       if (stream) {
 
-        stream.getTracks().forEach(
-          function(track) {
-            track.stop();
-          }
-        );
+        scanning = true;
+        processing = false;
 
-        stream = null;
-        video.srcObject = null;
+        startButton.style.display =
+          "none";
+
+        message.className = "";
+
+        message.textContent =
+          "QRコードをカメラに映してください。";
+
+        requestAnimationFrame(scanQR);
+
+        return;
       }
 
 
-      // iPad Safari向け
-      await new Promise(
-        function(resolve) {
-          setTimeout(resolve, 500);
-        }
-      );
-
-
+      // カメラはこのページで最初の1回だけ取得
       stream =
         await navigator.mediaDevices.getUserMedia({
 
@@ -249,10 +243,13 @@
 
 
       scanning = true;
+
       processing = false;
 
-      startButton.style.display = "none";
-      nextButton.style.display = "none";
+
+      startButton.style.display =
+        "none";
+
 
       message.className = "";
 
@@ -277,15 +274,16 @@
         "詳細：" +
         error.message;
 
-      startButton.style.display = "block";
+      startButton.style.display =
+        "block";
     }
 
   }
 
 
-  // -------------------------
+  // =========================
   // QR読み取り
-  // -------------------------
+  // =========================
 
   function scanQR() {
 
@@ -343,24 +341,30 @@
       ) {
 
         processing = true;
-        scanning = false;
 
 
         const qrData =
           code.data.trim();
 
 
-        message.className = "loading";
+        message.className =
+          "loading";
 
         message.textContent =
           "受付処理中です…";
 
 
-        // カメラを完全停止
-        stopCamera();
+        /*
+         * ★重要
+         *
+         * カメラを停止しません。
+         *
+         * iPad Safariでは、カメラを停止して
+         * getUserMedia()を再実行すると
+         * NotAllowedErrorになる場合があるためです。
+         */
 
 
-        // GASへ送信
         sendToGAS(qrData);
 
         return;
@@ -374,33 +378,9 @@
   }
 
 
-  // -------------------------
-  // カメラ停止
-  // -------------------------
-
-  function stopCamera() {
-
-    scanning = false;
-
-    if (stream) {
-
-      stream.getTracks().forEach(
-        function(track) {
-          track.stop();
-        }
-      );
-
-      stream = null;
-    }
-
-    video.srcObject = null;
-
-  }
-
-
-  // -------------------------
+  // =========================
   // GASへ送信
-  // -------------------------
+  // =========================
 
   function sendToGAS(qrData) {
 
@@ -411,50 +391,86 @@
 
 
     /*
-     * 画面遷移を起こさず、
-     * 非表示iframeへGASのURLを読み込ませます。
+     * 非表示iframeを使ってGASへ送信。
+     * このページ自体は移動しません。
      */
 
     const iframe =
       document.createElement("iframe");
 
-    iframe.style.display = "none";
+    iframe.style.display =
+      "none";
 
     iframe.src = url;
 
     document.body.appendChild(iframe);
 
 
-    // 受付処理を開始したことを画面表示
-    message.className = "success";
-
-    message.innerHTML =
-      "受付処理を送信しました。<br><br>" +
-      "<strong>受付番号：" +
-      escapeHtml(qrData) +
-      "</strong><br><br>" +
-      "スプレッドシートを確認しています…";
-
-
     /*
-     * 少し待ってから次の受付へ
+     * GAS側の処理時間を考慮して
+     * 少し待ちます。
      */
+
     setTimeout(
       function() {
 
-        document.body.removeChild(iframe);
+        /*
+         * iframeを削除
+         */
+        if (
+          iframe.parentNode
+        ) {
 
-        message.className = "success";
+          iframe.parentNode.removeChild(
+            iframe
+          );
+
+        }
+
+
+        /*
+         * 受付完了表示
+         */
+        message.className =
+          "success";
 
         message.innerHTML =
-          "受付処理を完了しました。<br><br>" +
-          "<strong>受付番号：" +
+          "【受付完了】<br><br>" +
+          "受付番号：" +
           escapeHtml(qrData) +
-          "</strong>";
+          "<br><br>" +
+          "次のQRコードを読み取ってください。";
 
 
-        nextButton.style.display =
-          "block";
+        /*
+         * ★重要
+         *
+         * カメラは停止しません。
+         *
+         * 少し待ってから
+         * 次のQR読み取りを再開します。
+         */
+
+        setTimeout(
+          function() {
+
+            processing = false;
+
+            scanning = true;
+
+            message.className = "";
+
+            message.textContent =
+              "次のQRコードを読み取ってください。";
+
+            requestAnimationFrame(
+              scanQR
+            );
+
+          },
+          1000
+        );
+
 
       },
       2500
@@ -463,18 +479,33 @@
   }
 
 
-  // -------------------------
+  // =========================
   // HTMLエスケープ
-  // -------------------------
+  // =========================
 
   function escapeHtml(value) {
 
     return String(value)
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#039;");
+      .replace(
+        /&/g,
+        "&amp;"
+      )
+      .replace(
+        /</g,
+        "&lt;"
+      )
+      .replace(
+        />/g,
+        "&gt;"
+      )
+      .replace(
+        /"/g,
+        "&quot;"
+      )
+      .replace(
+        /'/g,
+        "&#039;"
+      );
 
   }
 
