@@ -452,24 +452,29 @@
          */
 
         setTimeout(
-          function() {
+  function() {
 
-            processing = false;
+    processing = false;
 
-            scanning = true;
+    message.className = "";
 
-            message.className = "";
+    message.textContent =
+      "次のQRコードを読み取ってください。";
 
-            message.textContent =
-              "次のQRコードを読み取ってください。";
+    // QR読み取りを再開
+    scanning = true;
 
-            requestAnimationFrame(
-              scanQR
-            );
+    // 少し間隔を空けてスキャンループを再開
+    setTimeout(
+      function() {
+        requestAnimationFrame(scanQR);
+      },
+      300
+    );
 
-          },
-          1000
-        );
+  },
+  1000
+);
 
 
       },
