@@ -388,20 +388,116 @@
     "checkInCallback_" +
     Date.now();
 
-
   const script =
     document.createElement("script");
 
 
   /*
-   * GASから返ってきた結果を
-   * この関数で受け取ります。
+   * 受付終了ボタンを作成
+   */
+  function createFinishButton() {
+
+    let button =
+      document.getElementById("finishButton");
+
+    if (!button) {
+
+      button =
+        document.createElement("button");
+
+      button.id =
+        "finishButton";
+
+      button.textContent =
+        "受付終了";
+
+      button.style.display =
+        "block";
+
+      button.style.width =
+        "100%";
+
+      button.style.maxWidth =
+        "400px";
+
+      button.style.margin =
+        "10px auto 15px";
+
+      button.style.padding =
+        "16px";
+
+      button.style.border =
+        "none";
+
+      button.style.borderRadius =
+        "10px";
+
+      button.style.background =
+        "#b3261e";
+
+      button.style.color =
+        "white";
+
+      button.style.fontSize =
+        "1.1rem";
+
+      button.style.fontWeight =
+        "bold";
+
+      document.body.appendChild(button);
+
+
+      button.addEventListener(
+        "click",
+        function() {
+
+          scanning = false;
+          processing = true;
+
+
+          if (stream) {
+
+            stream.getTracks().forEach(
+              function(track) {
+                track.stop();
+              }
+            );
+
+            stream = null;
+          }
+
+
+          video.srcObject = null;
+
+
+          button.style.display =
+            "none";
+
+
+          message.className =
+            "success";
+
+
+          message.innerHTML =
+            "<strong>本日の受付は終了しました</strong><br><br>" +
+            "最後の受付内容を確認できます。";
+
+        }
+      );
+    }
+
+    return button;
+  }
+
+
+  /*
+   * GASから結果を受け取る
    */
   window[callbackName] =
     function(result) {
 
       /*
-       * scriptを削除
+       * script削除
        */
       if (script.parentNode) {
         script.parentNode.removeChild(script);
@@ -409,7 +505,7 @@
 
 
       /*
-       * callbackも削除
+       * callback削除
        */
       try {
         delete window[callbackName];
@@ -419,49 +515,233 @@
 
 
       /*
-       * 受付結果を表示
+       * 受付終了ボタン
+       */
+      const finishButton =
+        createFinishButton();
+
+
+      /*
+       * 受付日時
+       *
+       * 今回の受付処理が完了した時刻
+       */
+      const checkInTime =
+        new Date();
+
+      const timeText =
+        checkInTime.getFullYear() +
+        "/" +
+        String(
+          checkInTime.getMonth() + 1
+        ).padStart(2, "0") +
+        "/" +
+        String(
+          checkInTime.getDate()
+        ).padStart(2, "0") +
+        " " +
+        String(
+          checkInTime.getHours()
+        ).padStart(2, "0") +
+        ":" +
+        String(
+          checkInTime.getMinutes()
+        ).padStart(2, "0") +
+        ":" +
+        String(
+          checkInTime.getSeconds()
+        ).padStart(2, "0");
+
+
+      /*
+       * 既に受付済み
        */
       if (result.alreadyCheckedIn) {
 
         message.className =
           "warning";
 
-        message.innerHTML =
-          "【既に受付済み】<br><br>" +
+        let html = "";
+
+        html +=
+          "<strong>【既に受付済み】</strong><br><br>";
+
+        html +=
+          "<span style='font-size:1.3rem;font-weight:bold;'>" +
           escapeHtml(
             result.details
               ? result.details.name
               : "お客様"
           ) +
-          " 様は、すでに受付済みです。<br><br>" +
-          "次のQRコードを読み取ってください。";
+          " 様</span><br><br>";
+
+        html +=
+          "この受付番号は、すでに受付されています。<br><br>";
+
+        html +=
+          "受付番号：" +
+          escapeHtml(qrData) +
+          "<br><br>";
 
 
+        /*
+         * チケット内容
+         */
+        if (result.details) {
+
+          html +=
+            "<div style='background:#fff;padding:12px;border-radius:8px;text-align:left;'>";
+
+          html +=
+            "<strong>受付内容</strong><br><br>";
+
+          html +=
+            "有料試飲チケット：" +
+            escapeHtml(
+              result.details.paidTasting
+            ) +
+            " 枚<br>";
+
+          html +=
+            "追加試飲チケット：" +
+            escapeHtml(
+              result.details.extraTasting
+            ) +
+            " 枚<br>";
+
+          html +=
+            "有料指定席：" +
+            escapeHtml(
+              result.details.reservedSeat
+            ) +
+            " 席<br>";
+
+          html +=
+            "有料指定席夕方：" +
+            escapeHtml(
+              result.details.reservedSeatEvening
+            ) +
+            " 席<br>";
+
+          html +=
+            "軽食：" +
+            escapeHtml(
+              result.details.snack
+            ) +
+            " 個";
+
+          html +=
+            "</div>";
+        }
+
+
+        html +=
+          "<br>次のQRコードを読み取ってください。";
+
+        message.innerHTML =
+          html;
+
+
+      /*
+       * 新規受付完了
+       */
       } else if (result.success) {
 
         message.className =
           "success";
 
-        message.innerHTML =
-          "【受付完了】<br><br>" +
+        let html = "";
+
+        html +=
+          "<strong>【受付完了】</strong><br><br>";
+
+        html +=
+          "<span style='font-size:1.4rem;font-weight:bold;'>" +
           escapeHtml(
             result.details
               ? result.details.name
               : "お客様"
           ) +
-          " 様<br><br>" +
+          " 様</span><br><br>";
+
+        html +=
           "受付番号：" +
           escapeHtml(qrData) +
-          "<br><br>" +
-          "次のQRコードを読み取ってください。";
+          "<br><br>";
 
 
+        /*
+         * 受付内容
+         */
+        if (result.details) {
+
+          html +=
+            "<div style='background:#fff;padding:15px;border-radius:10px;text-align:left;'>";
+
+          html +=
+            "<strong>受付内容</strong><br><br>";
+
+          html +=
+            "有料試飲チケット：" +
+            escapeHtml(
+              result.details.paidTasting
+            ) +
+            " 枚<br>";
+
+          html +=
+            "追加試飲チケット：" +
+            escapeHtml(
+              result.details.extraTasting
+            ) +
+            " 枚<br>";
+
+          html +=
+            "有料指定席：" +
+            escapeHtml(
+              result.details.reservedSeat
+            ) +
+            " 席<br>";
+
+          html +=
+            "有料指定席夕方：" +
+            escapeHtml(
+              result.details.reservedSeatEvening
+            ) +
+            " 席<br>";
+
+          html +=
+            "軽食：" +
+            escapeHtml(
+              result.details.snack
+            ) +
+            " 個<br><br>";
+
+          html +=
+            "<strong>受付日時：</strong>" +
+            timeText;
+
+          html +=
+            "</div>";
+        }
+
+
+        html +=
+          "<br><strong>次のQRコードを読み取れます。</strong>";
+
+        message.innerHTML =
+          html;
+
+
+      /*
+       * エラー
+       */
       } else {
 
         message.className =
           "error";
 
         message.innerHTML =
+          "<strong>【受付エラー】</strong><br><br>" +
           escapeHtml(
             result.message ||
             "該当する参加者が見つかりません。"
@@ -472,6 +752,13 @@
 
 
       /*
+       * 受付終了ボタンを表示
+       */
+      finishButton.style.display =
+        "block";
+
+
+      /*
        * 次のQR読み取りを再開
        */
       setTimeout(
@@ -479,11 +766,6 @@
 
           processing = false;
           scanning = true;
-
-          message.className = "";
-
-          message.textContent =
-            "次のQRコードを読み取ってください。";
 
           requestAnimationFrame(
             scanQR
